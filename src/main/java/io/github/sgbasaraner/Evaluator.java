@@ -39,15 +39,26 @@ public class Evaluator {
         }
     }
 
-    // TODO: make separate maps for w vs b
-    private final LongObjectHashMap<Performance> performanceMap = new LongObjectHashMap<>();
+    private final LongObjectHashMap<Performance> whitePerformanceMap = new LongObjectHashMap<>();
+    private final LongObjectHashMap<Performance> blackPerformanceMap = new LongObjectHashMap<>();
 
     private enum GameResult {
         WON, LOST, DRAW
     }
 
-    public Evaluation evaluate(Board board) {
-        return performanceMap.getIfAbsent(board.getZobristKey(), Performance::new).toEvaluation();
+    public Evaluation evaluate(Board board, Side side) {
+        LongObjectHashMap<Performance> map;
+        switch (side) {
+            case WHITE:
+                map = whitePerformanceMap;
+                break;
+            case BLACK:
+                map = blackPerformanceMap;
+                break;
+            default:
+                throw new IllegalStateException("Unexpected value: " + side);
+        }
+        return map.getIfAbsent(board.getZobristKey(), Performance::new).toEvaluation();
     }
 
     public Evaluator(String pgnFilePath, String playerName) throws Exception {
@@ -85,24 +96,29 @@ public class Evaluator {
             final MoveList moves = game.getHalfMoves();
             final Board board = new Board();
             for (Move move: moves) {
-                try {
-                    board.doMove(move);
-                    final var currentPerformance = performanceMap.getIfAbsentPut(board.getIncrementalHashKey(), Performance::new);
-                    switch (result) {
-                        case WON:
-                            currentPerformance.winCount++;
-                            break;
-                        case LOST:
-                            currentPerformance.lossCount++;
-                            break;
-                        case DRAW:
-                            currentPerformance.drawCount++;
-                            break;
-                    }
-                } catch (Exception e) {
-                    System.out.println("NPE in move " + move.toString());
-                    break;
+
+                board.doMove(move);
+
+                LongObjectHashMap<Performance> map;
+                if (playerIsBlack) {
+                    map = blackPerformanceMap;
+                } else {
+                    map = whitePerformanceMap;
                 }
+
+                final var currentPerformance = map.getIfAbsentPut(board.getIncrementalHashKey(), Performance::new);
+                switch (result) {
+                    case WON:
+                        currentPerformance.winCount++;
+                        break;
+                    case LOST:
+                        currentPerformance.lossCount++;
+                        break;
+                    case DRAW:
+                        currentPerformance.drawCount++;
+                        break;
+                }
+
             }
         }
     }

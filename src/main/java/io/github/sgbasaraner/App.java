@@ -20,6 +20,7 @@ public class App {
                 if (variant != null && variant.equals("From Position")) {
                     continue;
                 }
+                final Side playerSide = game.getWhitePlayer().getName().equals("sarpbasaraner") ? Side.WHITE : Side.BLACK;
                 final MoveList moves = game.getHalfMoves();
                 if (moves.size() >= 2) {
                     final Board board = new Board();
@@ -27,7 +28,7 @@ public class App {
                     board.doMove(m1);
                     final var m2 = moves.get(1);
                     board.doMove(m2);
-                    final var eval = evaluator.evaluate(board);
+                    final var eval = evaluator.evaluate(board, playerSide);
                     System.out.println("m1: " + m1.toString() + " m2: " + m2.toString() + "; wr: " + eval.winRate + "; w - " + game.getWhitePlayer().getName());
                 }
 
