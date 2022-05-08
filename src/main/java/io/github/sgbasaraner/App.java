@@ -6,6 +6,7 @@ import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.move.MoveList;
 import com.github.bhlangonijr.chesslib.pgn.PgnHolder;
 
+import java.time.Instant;
 import java.util.Arrays;
 
 public class App {
@@ -13,8 +14,11 @@ public class App {
         final var pgnFilePath = "data/sarp.pgn";
         PgnHolder pgn = new PgnHolder(pgnFilePath);
         try {
+            final var startInstant = Instant.now();
             var evaluator = new Evaluator(pgnFilePath, "sarpbasaraner");
+            final var loadFinished = Instant.now();
             pgn.loadPgn();
+            final var evalStart = Instant.now();
             for (Game game: pgn.getGames()) {
                 final var variant = game.getProperty().get("Variant");
                 if (variant != null && variant.equals("From Position")) {
@@ -33,6 +37,9 @@ public class App {
                 }
 
             }
+            final var evalFinished = Instant.now();
+            System.out.println("Load took " + (loadFinished.toEpochMilli() - startInstant.toEpochMilli()) + " milliseconds.");
+            System.out.println("Eval took " + (evalFinished.toEpochMilli() - evalStart.toEpochMilli()) + " milliseconds.");
 
         } catch (Exception e) {
             e.printStackTrace();

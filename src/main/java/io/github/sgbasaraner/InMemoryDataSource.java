@@ -83,7 +83,7 @@ public class InMemoryDataSource implements DataSource {
 
     @Override
     public Performance query(long key, Side side, int ratingDiffGt, int ratingDiffLt) throws SQLException {
-        final var sql = String.format("SELECT outcome FROM performance where rating_diff > %s and position = %s and side = %s and rating_diff < %s",
+        final var sql = String.format("SELECT outcome FROM performance where rating_diff > %s and position = %s and is_black = %s and rating_diff < %s",
                 ratingDiffGt,
                 key,
                 side.equals(Side.BLACK) ? "TRUE" : "FALSE",
@@ -95,7 +95,7 @@ public class InMemoryDataSource implements DataSource {
 
     @Override
     public Performance query(long key, Side side) throws SQLException {
-        final var sql = String.format("SELECT outcome FROM performance where position = %s and side = %s",
+        final var sql = String.format("SELECT outcome FROM performance where position = %s and is_black = %s",
                 key,
                 side.equals(Side.BLACK) ? "TRUE" : "FALSE"
         );

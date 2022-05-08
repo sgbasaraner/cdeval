@@ -9,4 +9,8 @@ public interface DataSource {
     Performance query(long position, Side side, int ratingDiffGt, int ratingDiffLt) throws SQLException;
     Performance query(long position, Side side) throws SQLException;
     void load(String pgnFilePath, String playerName) throws Exception;
+
+    public static DataSource createDefault() throws SQLException {
+        return new InMemoryDataSource();
+    }
 }
