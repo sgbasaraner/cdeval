@@ -37,11 +37,20 @@
             var randomIdx = Math.floor(Math.random() * possibleMoves.length)
             game.move(possibleMoves[randomIdx])
             board.position(game.fen())
+            fetch("evaluateMoves?fen=" + game.fen() + "&side=" + (game.turn() === 'b' ? 'black' : 'white')).then(function(response) {
+                return response.json();
+            }).then(function(data) {
+                console.log(data);
+            }).catch(function() {
+                console.log("Booo");
+            });
+
 
             window.setTimeout(makeRandomMove, 500)
         }
 
         board = Chessboard('board', 'start')
+
 
         window.setTimeout(makeRandomMove, 500)
     })();

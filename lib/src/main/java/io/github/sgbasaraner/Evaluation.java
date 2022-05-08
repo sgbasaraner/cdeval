@@ -10,4 +10,16 @@ public class Evaluation {
         this.drawRate = drawRate;
         this.gameCount = gameCount;
     }
+
+    public double getWinRate() {
+        return winRate;
+    }
+
+    public double getDrawRate() {
+        return drawRate;
+    }
+
+    public long getGameCount() {
+        return gameCount;
+    }
 }
