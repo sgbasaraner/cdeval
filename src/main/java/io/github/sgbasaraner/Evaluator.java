@@ -9,36 +9,6 @@ import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
 
 public class Evaluator {
 
-    public static class Evaluation {
-        final double winRate;
-        final double drawRate;
-        final long gameCount;
-
-        public Evaluation(double winRate, double drawRate, long gameCount) {
-            this.winRate = winRate;
-            this.drawRate = drawRate;
-            this.gameCount = gameCount;
-        }
-    }
-
-    private static class Performance {
-        long winCount = 0;
-        long lossCount = 0;
-        long drawCount = 0;
-
-        long getTotal() {
-            return winCount + lossCount + drawCount;
-        }
-
-        Evaluation toEvaluation() {
-            final var total = getTotal();
-            if (total <= 0) {
-                return new Evaluation(0D, 0D, 0);
-            }
-            return new Evaluation((double)winCount / total, (double)drawCount / total, total);
-        }
-    }
-
     private final LongObjectHashMap<Performance> whitePerformanceMap = new LongObjectHashMap<>();
     private final LongObjectHashMap<Performance> blackPerformanceMap = new LongObjectHashMap<>();
 
