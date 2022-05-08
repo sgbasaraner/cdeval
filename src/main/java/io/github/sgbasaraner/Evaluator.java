@@ -26,4 +26,8 @@ public class Evaluator {
         dataSource.load(pgnFilePath, playerName);
         this.dataSource = dataSource;
     }
+
+    public Evaluator(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
 }
