@@ -17,6 +17,10 @@ public class Evaluator {
         return dataSource.query(board.getZobristKey(), side).toEvaluation();
     }
 
+    public Evaluation evaluate(Board board, Side side, int ratingGt, int ratingLt) throws SQLException {
+        return dataSource.query(board.getZobristKey(), side, ratingGt, ratingLt).toEvaluation();
+    }
+
     public Evaluator(String pgnFilePath, String playerName) throws Exception {
         final var dataSource = DataSource.createDefault();
         dataSource.load(pgnFilePath, playerName);
