@@ -32,8 +32,16 @@ public class App {
                     board.doMove(m1);
                     final var m2 = moves.get(1);
                     board.doMove(m2);
-                    final var eval = evaluator.evaluate(board, playerSide);
-                    System.out.println("m1: " + m1.toString() + " m2: " + m2.toString() + "; wr: " + eval.winRate + "; w - " + game.getWhitePlayer().getName());
+                    final var eval = evaluator.evaluateMoves(board, playerSide);
+                    try {
+                        final var bestMove = eval.get(0).getOne();
+                        final var bestMoveEval = eval.get(0).getTwo();
+                        System.out.println("m1: " + m1.toString() + " m2: " + m2.toString() + "; bestmove: " + bestMove.toString() + " wr: " + bestMoveEval.winRate + "; w - " + game.getWhitePlayer().getName());
+                    } catch (IndexOutOfBoundsException e) {
+                        System.out.println("No best move!");
+                    }
+
+
                 }
 
             }
