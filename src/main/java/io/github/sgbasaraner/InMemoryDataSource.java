@@ -6,17 +6,21 @@ import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.move.MoveList;
 import com.github.bhlangonijr.chesslib.pgn.PgnHolder;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
+import org.h2.jdbcx.JdbcConnectionPool;
 
 import java.sql.*;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class InMemoryDataSource implements DataSource {
 
-    private final Connection connection;
+    private final JdbcConnectionPool connectionPool;
 
     private static final String JDBC_URL = "jdbc:h2:mem:cdeval_inmemorydatasource";
 
     public InMemoryDataSource() throws SQLException {
-        this.connection = DriverManager.getConnection(JDBC_URL);
+        this.connectionPool = JdbcConnectionPool.create(JDBC_URL, null, null);
+        this.connectionPool.setMaxConnections(Runtime.getRuntime().availableProcessors());
 
         final var sql = "" +
                 "Create table performance (" +
@@ -30,9 +34,13 @@ public class InMemoryDataSource implements DataSource {
                 "CREATE INDEX outcome_idx on performance(outcome); ";
 
 
-        Statement statement = connection.createStatement();
-
-        statement.execute(sql);
+        useStatement(statement -> {
+            try {
+                statement.execute(sql);
+            } catch (SQLException e) {
+                throw new RuntimeException();
+            }
+        });
     }
 
     private void executeInsert(long key, int ratingDiff, Side side, String result) throws SQLException {
@@ -43,9 +51,35 @@ public class InMemoryDataSource implements DataSource {
                 result
         );
 
-        Statement statement = connection.createStatement();
+        useStatement(statement -> {
+            try {
+                statement.executeUpdate(sql);
+            } catch (SQLException e) {
+                throw new RuntimeException();
+            }
+        });
+    }
 
-        statement.executeUpdate(sql);
+    private void useStatement(Consumer<Statement> fn) throws SQLException {
+        final var conn = connectionPool.getConnection();
+
+        final var stmt = conn.createStatement();
+
+        fn.accept(stmt);
+
+        conn.close();
+    }
+
+    private <R> R useStatement (Function<Statement, R> fn) throws SQLException {
+        final var conn = connectionPool.getConnection();
+
+        final var stmt = conn.createStatement();
+
+        final var r = fn.apply(stmt);
+
+        conn.close();
+
+        return r;
     }
 
 
@@ -66,7 +100,6 @@ public class InMemoryDataSource implements DataSource {
 
     private Performance mapToPerformance(ResultSet resultSet) throws SQLException {
         final var perf = new Performance();
-
         while (resultSet.next()) {
             int outcome = resultSet.getInt("outcome");
             if (outcome == 0) {
@@ -90,7 +123,13 @@ public class InMemoryDataSource implements DataSource {
                 ratingDiffLt
         );
 
-        return mapToPerformance(connection.createStatement().executeQuery(sql));
+        return useStatement(statement -> {
+            try {
+                return mapToPerformance(statement.executeQuery(sql));
+            } catch (SQLException e) {
+                return new Performance();
+            }
+        });
     }
 
     @Override
@@ -100,7 +139,13 @@ public class InMemoryDataSource implements DataSource {
                 side.equals(Side.BLACK) ? "TRUE" : "FALSE"
         );
 
-        return mapToPerformance(connection.createStatement().executeQuery(sql));
+        return useStatement(statement -> {
+            try {
+                return mapToPerformance(statement.executeQuery(sql));
+            } catch (SQLException e) {
+                return new Performance();
+            }
+        });
     }
 
     private enum GameResult {
@@ -111,59 +156,67 @@ public class InMemoryDataSource implements DataSource {
     public void load(String pgnFilePath, String playerName) throws Exception {
         PgnHolder pgn = new PgnHolder(pgnFilePath);
         pgn.loadPgn();
-        for (Game game: pgn.getGames()) {
-            final var variant = game.getProperty().get("Variant");
-            if (variant != null && variant.equals("From Position")) {
-                continue;
-            }
-            final boolean playerIsBlack;
-            final int ratingDiff;
-            if (game.getWhitePlayer().getName().equals(playerName)) {
-                playerIsBlack = false;
-                ratingDiff = game.getWhitePlayer().getElo() - game.getBlackPlayer().getElo();
-            } else if (game.getBlackPlayer().getName().equals(playerName)) {
-                playerIsBlack = true;
-                ratingDiff = game.getBlackPlayer().getElo() - game.getWhitePlayer().getElo();
-            } else {
-                continue;
-            }
+        pgn.getGames()
+                .parallelStream()
+                .forEach(game -> {
+                    final var variant = game.getProperty().get("Variant");
+                    if (variant != null && variant.equals("From Position")) {
+                        return;
+                    }
+                    final boolean playerIsBlack;
+                    final int ratingDiff;
+                    if (game.getWhitePlayer().getName().equals(playerName)) {
+                        playerIsBlack = false;
+                        ratingDiff = game.getWhitePlayer().getElo() - game.getBlackPlayer().getElo();
+                    } else if (game.getBlackPlayer().getName().equals(playerName)) {
+                        playerIsBlack = true;
+                        ratingDiff = game.getBlackPlayer().getElo() - game.getWhitePlayer().getElo();
+                    } else {
+                        return;
+                    }
 
-            final GameResult result;
-            switch (game.getResult().value()) {
-                case "WHITE_WON":
-                    result = !playerIsBlack ? GameResult.WON : GameResult.LOST;
-                    break;
-                case "BLACK_WON":
-                    result = playerIsBlack ? GameResult.WON : GameResult.LOST;
-                    break;
-                case "DRAW":
-                    result = GameResult.DRAW;
-                    break;
-                default:
-                    continue;
-            }
+                    final GameResult result;
+                    switch (game.getResult().value()) {
+                        case "WHITE_WON":
+                            result = !playerIsBlack ? GameResult.WON : GameResult.LOST;
+                            break;
+                        case "BLACK_WON":
+                            result = playerIsBlack ? GameResult.WON : GameResult.LOST;
+                            break;
+                        case "DRAW":
+                            result = GameResult.DRAW;
+                            break;
+                        default:
+                            return;
+                    }
 
-            final MoveList moves = game.getHalfMoves();
-            final Board board = new Board();
-            for (Move move: moves) {
+                    final MoveList moves = game.getHalfMoves();
+                    final Board board = new Board();
+                    for (Move move: moves) {
 
-                board.doMove(move);
+                        board.doMove(move);
 
-                final Side side = playerIsBlack ? Side.BLACK : Side.WHITE;
+                        final Side side = playerIsBlack ? Side.BLACK : Side.WHITE;
+                        try {
+                            switch (result) {
+                                case WON:
+                                    saveWin(board.getIncrementalHashKey(), ratingDiff, side);
+                                    break;
+                                case LOST:
+                                    saveLoss(board.getIncrementalHashKey(), ratingDiff, side);
+                                    break;
+                                case DRAW:
+                                    saveDraw(board.getIncrementalHashKey(), ratingDiff, side);
+                                    break;
+                            }
+                        } catch (SQLException e) {
+                            return;
+                        }
 
-                switch (result) {
-                    case WON:
-                        saveWin(board.getIncrementalHashKey(), ratingDiff, side);
-                        break;
-                    case LOST:
-                        saveLoss(board.getIncrementalHashKey(), ratingDiff, side);
-                        break;
-                    case DRAW:
-                        saveDraw(board.getIncrementalHashKey(), ratingDiff, side);
-                        break;
-                }
 
-            }
-        }
+                    }
+
+                });
+
     }
 }
