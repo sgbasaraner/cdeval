@@ -34,13 +34,14 @@ public class Evaluator {
 
         final var possibleMoves = board.legalMoves();
 
+
         return possibleMoves
                 .parallelStream()
                 .map(move -> {
                     final var clonedBoard = board.clone();
                     clonedBoard.doMove(move);
                     try {
-                        final var r = Tuples.pair(move, evaluate(board, side));
+                        final var r = Tuples.pair(move, evaluate(clonedBoard, side));
                         if (r.getTwo().gameCount == 0) {
                             return null;
                         }
@@ -67,7 +68,7 @@ public class Evaluator {
                     final var clonedBoard = board.clone();
                     clonedBoard.doMove(move);
                     try {
-                        final var r = Tuples.pair(move, evaluate(board, side, ratingGt, ratingLt));
+                        final var r = Tuples.pair(move, evaluate(clonedBoard, side, ratingGt, ratingLt));
                         if (r.getTwo().gameCount == 0) {
                             return null;
                         }

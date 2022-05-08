@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
-    <title>Users</title>
+    <title>CdEval Demo</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"
             integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2"
@@ -21,11 +21,24 @@
           crossorigin="anonymous">
 </head>
 <body>
-<p>Hello from cdevaldemo!</p>
-<div id="board" style="width: 400px"></div>
-<p id="status"></p>
-<p id="pgn"></p>
-<p id="fen"></p>
+<div class="container">
+    <div class="row">
+        <div class="col">
+            <div id="board" style="width: 400px"></div>
+            <p id="status"></p>
+            <p id="pgn"></p>
+            <p id="fen"></p>
+        </div>
+
+        <div class="col">
+            <ul class="list-group" id="move-list">
+            </ul>
+        </div>
+
+    </div>
+
+</div>
+
 
 <script>
     (function() {
@@ -33,6 +46,7 @@
         var $status = $('#status')
         var $fen = $('#fen')
         var $pgn = $('#pgn')
+        var $movelist = $('#move-list')
 
         function onDragStart (source, piece, position, orientation) {
             // do not pick up pieces if the game is over
@@ -108,14 +122,49 @@
         }
         var board = Chessboard('board', config);
 
+        function getMoveInfo(moveModel) {
+            const move = moveModel.move
+            let promo = null;
+            if (move.length === 5) {
+                promo = move.last;
+            }
+            const movingPiece = move.substring(0, 2)
+            const targetSq = move.substring(2, 4)
+
+            return {
+                movingPiece, targetSq, promo
+            }
+        }
 
         function getMoves() {
             fetch("evaluateMoves?fen=" + game.fen() + "&side=" + (game.turn() === 'b' ? 'black' : 'white')).then(function(response) {
                 return response.json();
             }).then(function(data) {
+                $movelist.empty();
+                for (let i = 0; i < data.length; i++) {
+                    const moveInfo = getMoveInfo(data[i])
+
+                    const moveStr = 'Move ' + moveInfo.movingPiece + ' to ' + moveInfo.targetSq + (moveInfo.promo ? ('=' + moveInfo.promo + ' ') : ' ') +' winrate: ' + (data[i].winRate * 100).toFixed(2) + '% in ' + data[i].gameCount.toString()+ ' games.'
+                    console.log(moveInfo)
+                    const res = $movelist.append('<li class="list-group-item movelistitem">' + moveStr + '</li>');
+                    const children = res.children();
+                    const lastChildren = children[children.length - 1];
+                    console.log(lastChildren)
+                    lastChildren.addEventListener('click', () => {
+                        console.log("clicked: " + moveInfo.movingPiece)
+                        game.move({
+                            from: moveInfo.movingPiece,
+                            to: moveInfo.targetSq,
+                            promotion: moveInfo.promo
+                        })
+                        board.position(game.fen())
+                        updateStatus()
+                    })
+                }
+
                 console.log(data);
             }).catch(function() {
-                console.log("Booo");
+                console.log("Data fetch error");
             });
         }
 
