@@ -5,121 +5,91 @@ import com.github.bhlangonijr.chesslib.game.Game;
 import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.move.MoveList;
 import com.github.bhlangonijr.chesslib.pgn.PgnHolder;
+import org.eclipse.collections.api.tuple.Pair;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
+import org.eclipse.collections.impl.tuple.Tuples;
+
+import java.sql.SQLException;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class Evaluator {
 
-    public static class Evaluation {
-        final double winRate;
-        final double drawRate;
-        final long gameCount;
+    private final DataSource dataSource;
 
-        public Evaluation(double winRate, double drawRate, long gameCount) {
-            this.winRate = winRate;
-            this.drawRate = drawRate;
-            this.gameCount = gameCount;
-        }
+    public Evaluation evaluate(Board board, Side side) throws SQLException {
+        return dataSource.query(board.getZobristKey(), side).toEvaluation();
     }
 
-    private static class Performance {
-        long winCount = 0;
-        long lossCount = 0;
-        long drawCount = 0;
-
-        long getTotal() {
-            return winCount + lossCount + drawCount;
-        }
-
-        Evaluation toEvaluation() {
-            final var total = getTotal();
-            if (total <= 0) {
-                return new Evaluation(0D, 0D, 0);
-            }
-            return new Evaluation((double)winCount / total, (double)drawCount / total, total);
-        }
+    public Evaluation evaluate(Board board, Side side, int ratingGt, int ratingLt) throws SQLException {
+        return dataSource.query(board.getZobristKey(), side, ratingGt, ratingLt).toEvaluation();
     }
 
-    private final LongObjectHashMap<Performance> whitePerformanceMap = new LongObjectHashMap<>();
-    private final LongObjectHashMap<Performance> blackPerformanceMap = new LongObjectHashMap<>();
+    public List<Pair<Move, Evaluation>> evaluateMoves(Board board, Side side) {
+        assert board.getSideToMove().value().equals("WHITE") ? side.equals(Side.WHITE) : side.equals(Side.BLACK);
 
-    private enum GameResult {
-        WON, LOST, DRAW
+        final var possibleMoves = board.legalMoves();
+
+        return possibleMoves
+                .parallelStream()
+                .map(move -> {
+                    final var clonedBoard = board.clone();
+                    clonedBoard.doMove(move);
+                    try {
+                        final var r = Tuples.pair(move, evaluate(board, side));
+                        if (r.getTwo().gameCount == 0) {
+                            return null;
+                        }
+                        return r;
+                    } catch (SQLException e) {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparingDouble(p -> ((Pair<Move, Evaluation>)p).getTwo().winRate)
+                        .reversed()
+                        .thenComparing(p -> ((Pair<Move, Evaluation>)p).getTwo().gameCount))
+                .collect(Collectors.toUnmodifiableList());
     }
 
-    public Evaluation evaluate(Board board, Side side) {
-        LongObjectHashMap<Performance> map;
-        switch (side) {
-            case WHITE:
-                map = whitePerformanceMap;
-                break;
-            case BLACK:
-                map = blackPerformanceMap;
-                break;
-            default:
-                throw new IllegalStateException("Unexpected value: " + side);
-        }
-        return map.getIfAbsent(board.getZobristKey(), Performance::new).toEvaluation();
+    public List<Pair<Move, Evaluation>> evaluateMoves(Board board, Side side, int ratingGt, int ratingLt) {
+        assert board.getSideToMove().value().equals("WHITE") ? side.equals(Side.WHITE) : side.equals(Side.BLACK);
+
+        final var possibleMoves = board.legalMoves();
+
+        return possibleMoves
+                .parallelStream()
+                .map(move -> {
+                    final var clonedBoard = board.clone();
+                    clonedBoard.doMove(move);
+                    try {
+                        final var r = Tuples.pair(move, evaluate(board, side, ratingGt, ratingLt));
+                        if (r.getTwo().gameCount == 0) {
+                            return null;
+                        }
+                        return r;
+                    } catch (SQLException e) {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparingDouble(p -> ((Pair<Move, Evaluation>)p).getTwo().winRate)
+                        .reversed()
+                        .thenComparing(p -> ((Pair<Move, Evaluation>)p).getTwo().gameCount))
+                .collect(Collectors.toUnmodifiableList());
     }
 
     public Evaluator(String pgnFilePath, String playerName) throws Exception {
-        PgnHolder pgn = new PgnHolder(pgnFilePath);
-        pgn.loadPgn();
-        for (Game game: pgn.getGames()) {
-            final var variant = game.getProperty().get("Variant");
-            if (variant != null && variant.equals("From Position")) {
-                continue;
-            }
-            final boolean playerIsBlack;
-            if (game.getWhitePlayer().getName().equals(playerName)) {
-                playerIsBlack = false;
-            } else if (game.getBlackPlayer().getName().equals(playerName)) {
-                playerIsBlack = true;
-            } else {
-                continue;
-            }
+        final var dataSource = DataSource.createDefault();
+        dataSource.load(pgnFilePath, playerName);
+        this.dataSource = dataSource;
+    }
 
-            final GameResult result;
-            switch (game.getResult().value()) {
-                case "WHITE_WON":
-                    result = !playerIsBlack ? GameResult.WON : GameResult.LOST;
-                    break;
-                case "BLACK_WON":
-                    result = playerIsBlack ? GameResult.WON : GameResult.LOST;
-                    break;
-                case "DRAW":
-                    result = GameResult.DRAW;
-                    break;
-                default:
-                    continue;
-            }
-
-            final MoveList moves = game.getHalfMoves();
-            final Board board = new Board();
-            for (Move move: moves) {
-
-                board.doMove(move);
-
-                LongObjectHashMap<Performance> map;
-                if (playerIsBlack) {
-                    map = blackPerformanceMap;
-                } else {
-                    map = whitePerformanceMap;
-                }
-
-                final var currentPerformance = map.getIfAbsentPut(board.getIncrementalHashKey(), Performance::new);
-                switch (result) {
-                    case WON:
-                        currentPerformance.winCount++;
-                        break;
-                    case LOST:
-                        currentPerformance.lossCount++;
-                        break;
-                    case DRAW:
-                        currentPerformance.drawCount++;
-                        break;
-                }
-
-            }
-        }
+    public Evaluator(DataSource dataSource) {
+        this.dataSource = dataSource;
     }
 }

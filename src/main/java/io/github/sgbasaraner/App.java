@@ -6,6 +6,7 @@ import com.github.bhlangonijr.chesslib.move.Move;
 import com.github.bhlangonijr.chesslib.move.MoveList;
 import com.github.bhlangonijr.chesslib.pgn.PgnHolder;
 
+import java.time.Instant;
 import java.util.Arrays;
 
 public class App {
@@ -13,8 +14,11 @@ public class App {
         final var pgnFilePath = "data/sarp.pgn";
         PgnHolder pgn = new PgnHolder(pgnFilePath);
         try {
+            final var startInstant = Instant.now();
             var evaluator = new Evaluator(pgnFilePath, "sarpbasaraner");
+            final var loadFinished = Instant.now();
             pgn.loadPgn();
+            final var evalStart = Instant.now();
             for (Game game: pgn.getGames()) {
                 final var variant = game.getProperty().get("Variant");
                 if (variant != null && variant.equals("From Position")) {
@@ -28,11 +32,22 @@ public class App {
                     board.doMove(m1);
                     final var m2 = moves.get(1);
                     board.doMove(m2);
-                    final var eval = evaluator.evaluate(board, playerSide);
-                    System.out.println("m1: " + m1.toString() + " m2: " + m2.toString() + "; wr: " + eval.winRate + "; w - " + game.getWhitePlayer().getName());
+                    final var eval = evaluator.evaluateMoves(board, playerSide);
+                    try {
+                        final var bestMove = eval.get(0).getOne();
+                        final var bestMoveEval = eval.get(0).getTwo();
+                        System.out.println("m1: " + m1.toString() + " m2: " + m2.toString() + "; bestmove: " + bestMove.toString() + " wr: " + bestMoveEval.winRate + "; w - " + game.getWhitePlayer().getName());
+                    } catch (IndexOutOfBoundsException e) {
+                        System.out.println("No best move!");
+                    }
+
+
                 }
 
             }
+            final var evalFinished = Instant.now();
+            System.out.println("Load took " + (loadFinished.toEpochMilli() - startInstant.toEpochMilli()) + " milliseconds.");
+            System.out.println("Eval took " + (evalFinished.toEpochMilli() - evalStart.toEpochMilli()) + " milliseconds.");
 
         } catch (Exception e) {
             e.printStackTrace();
