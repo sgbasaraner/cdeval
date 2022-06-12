@@ -8,7 +8,6 @@
 		<version>2.6.7</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<packaging>pom</packaging>
 	<groupId>io.github.sgbasaraner</groupId>
 	<artifactId>cdevaldemo</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
