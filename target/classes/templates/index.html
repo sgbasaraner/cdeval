@@ -160,23 +160,13 @@
                         board.position(game.fen())
                         updateStatus()
                     })
-                    // $movelist.children().last().addEventListener('click', function () {
-                    //     console.log("clicked")
-                    //     game.move({
-                    //         from: moveInfo.movingPiece,
-                    //         to: moveInfo.targetSq,
-                    //         promotion: moveInfo.promo
-                    //     })
-                    //     board.position(game.fen())
-                    // })
                 }
 
                 console.log(data);
             }).catch(function() {
-                console.log("Booo");
+                console.log("Data fetch error");
             });
         }
-
 
 
         updateStatus();
