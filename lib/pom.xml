@@ -5,13 +5,19 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.github.sgbasaraner</groupId>
-  <artifactId>cdeval</artifactId>
+  <artifactId>lib</artifactId>
   <version>0.0.1-SNAPSHOT</version>
 
   <name>${project.groupId}:${project.artifactId}</name>
   <description>Cdeval library</description>
   <packaging>jar</packaging>
 
+ <parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>2.6.7</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>11</maven.compiler.source>
